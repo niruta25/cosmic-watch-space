@@ -1,0 +1,73 @@
+import { useState, useEffect } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { SolarSystem3D } from "./SolarSystem3D";
+import { TimelineControls } from "./TimelineControls";
+import { ChatPanel } from "./ChatPanel";
+import { Play, Pause, AlertTriangle } from "lucide-react";
+
+export const SpaceWeatherDashboard = () => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [cmeActive, setCmeActive] = useState(true);
+
+  return (
+    <div className="h-screen flex flex-col bg-background">
+      {/* Disclaimer Banner */}
+      <div className="bg-destructive/10 border-b border-destructive/20 p-3">
+        <div className="flex items-center justify-center gap-2 text-sm text-destructive-foreground">
+          <AlertTriangle className="w-4 h-4" />
+          <span>This app is for educational purposes only. Refer to NOAA SWPC for official alerts.</span>
+        </div>
+      </div>
+
+      {/* Header */}
+      <header className="bg-card border-b border-border p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-solar-glow to-earth-glow bg-clip-text text-transparent">
+              Space Weather Monitor
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Solar flare and CME tracking system
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Badge variant={cmeActive ? "destructive" : "secondary"} className="animate-pulse-glow">
+              {cmeActive ? "CME ACTIVE" : "QUIET"}
+            </Badge>
+            <div className="text-sm text-muted-foreground">
+              {currentTime.toISOString().split('T')[0]}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex-1 flex">
+        {/* 3D Visualization */}
+        <div className="flex-1 relative">
+          <SolarSystem3D isPlaying={isPlaying} currentTime={currentTime} />
+          
+          {/* Timeline Controls Overlay */}
+          <div className="absolute bottom-6 left-6 right-80 z-10">
+            <Card className="p-4 bg-card/80 backdrop-blur-sm border-border/50">
+              <TimelineControls 
+                isPlaying={isPlaying}
+                onTogglePlay={() => setIsPlaying(!isPlaying)}
+                currentTime={currentTime}
+                onTimeChange={setCurrentTime}
+              />
+            </Card>
+          </div>
+        </div>
+
+        {/* Right Panel - Chat */}
+        <div className="w-80 border-l border-border bg-card">
+          <ChatPanel />
+        </div>
+      </div>
+    </div>
+  );
+};

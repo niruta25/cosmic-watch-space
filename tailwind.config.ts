@@ -57,6 +57,22 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Custom space weather colors
+        solar: {
+          DEFAULT: "hsl(var(--solar-glow))",
+          glow: "hsl(var(--solar-glow))",
+        },
+        earth: {
+          DEFAULT: "hsl(var(--earth-glow))",
+          glow: "hsl(var(--earth-glow))",
+        },
+        satellite: {
+          DEFAULT: "hsl(var(--satellite-trail))",
+          trail: "hsl(var(--satellite-trail))",
+        },
+        cme: {
+          warning: "hsl(var(--cme-warning))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

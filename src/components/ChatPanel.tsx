@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Bot, User, Satellite, Sun, AlertTriangle } from "lucide-react";
+import { Send, Bot, User, Satellite, Sun, AlertTriangle, Key } from "lucide-react";
 
 interface ChatMessage {
   id: string;
@@ -14,7 +14,11 @@ interface ChatMessage {
   type?: "info" | "warning" | "data";
 }
 
-export const ChatPanel = () => {
+interface ChatPanelProps {
+  impactedSatellites: any[];
+}
+
+export const ChatPanel = ({ impactedSatellites }: ChatPanelProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
@@ -27,6 +31,8 @@ export const ChatPanel = () => {
   
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('openai_api_key') || '');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(!apiKey);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,8 +47,44 @@ export const ChatPanel = () => {
     "protection": "Satellite operators can implement protective measures: orienting solar panels edge-on to particle flux, powering down non-essential systems, and switching to radiation-hardened backup components."
   };
 
+  const handleApiKeySubmit = () => {
+    if (apiKey.trim()) {
+      localStorage.setItem('openai_api_key', apiKey);
+      setShowApiKeyInput(false);
+    }
+  };
+
+  const generateGroundedResponse = (input: string) => {
+    const lowerInput = input.toLowerCase();
+    
+    // Ground responses with current system data
+    if (lowerInput.includes("cme") || lowerInput.includes("impact") || lowerInput.includes("hit")) {
+      const impactCount = impactedSatellites.length;
+      if (impactCount > 0) {
+        const nextImpact = impactedSatellites[0];
+        return `Current CME analysis shows ${impactCount} satellites in the impact zone. The first satellite (${nextImpact?.name || 'SAT-1'}) is expected to be affected within the next few hours. Based on current solar wind velocity of ~450 km/s, the main CME arrival at Earth is forecast for approximately 2.5 hours from now.`;
+      } else {
+        return "Current CME tracking shows no satellites directly in the impact path at this time. However, continue monitoring as the CME cone expands during propagation.";
+      }
+    }
+    
+    if (lowerInput.includes("satellite") || lowerInput.includes("orbit")) {
+      return `Currently tracking 8 satellites across different orbital regimes. Impact analysis shows ${impactedSatellites.length} satellites currently at risk from the active CME. LEO satellites have natural protection from Earth's magnetosphere, while GEO satellites are more vulnerable to charging effects.`;
+    }
+    
+    if (lowerInput.includes("gps")) {
+      return "GPS accuracy degradation is expected during the current geomagnetic disturbance. Position errors may increase from typical 3-meter accuracy to 10-50 meters during peak storm conditions. Aviation and precision surveying applications should implement backup navigation systems.";
+    }
+    
+    return "Please refer to NOAA SWPC for official information.";
+  };
+
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
+    if (!apiKey && !showApiKeyInput) {
+      setShowApiKeyInput(true);
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -52,44 +94,75 @@ export const ChatPanel = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue("");
     setIsTyping(true);
 
-    // Simulate processing time
-    setTimeout(() => {
-      const lowerInput = inputValue.toLowerCase();
-      let response = "I understand you're asking about space weather. Let me provide some current data based on our monitoring systems.";
-      let responseType: "info" | "warning" | "data" = "info";
-
-      // Simple keyword matching for demo
-      if (lowerInput.includes("cme") || lowerInput.includes("impact") || lowerInput.includes("hit")) {
-        response = predefinedResponses["cme impact"];
-        responseType = "warning";
-      } else if (lowerInput.includes("satellite") || lowerInput.includes("orbit")) {
-        response = predefinedResponses["satellites"];
-        responseType = "data";
-      } else if (lowerInput.includes("gps")) {
-        response = predefinedResponses["gps"];
-        responseType = "warning";
-      } else if (lowerInput.includes("flare") || lowerInput.includes("solar")) {
-        response = predefinedResponses["solar flare"];
-        responseType = "warning";
-      } else if (lowerInput.includes("protect") || lowerInput.includes("safe")) {
-        response = predefinedResponses["protection"];
-        responseType = "info";
+    try {
+      if (!apiKey) {
+        throw new Error('API key required');
       }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a space weather assistant for an educational monitoring system. You help users understand solar flares, CMEs, and satellite impacts. Always provide educational information but remind users to refer to NOAA SWPC for official alerts. Keep responses concise and technical but accessible.
+              
+Current system data:
+- ${impactedSatellites.length} satellites currently in CME impact zone
+- Active G2 geomagnetic storm in progress
+- CME launched 18 hours ago, expected Earth arrival in ~2.5 hours
+
+If asked about topics outside space weather, politely redirect to NOAA SWPC.`
+            },
+            {
+              role: 'user',
+              content: currentInput
+            }
+          ],
+          max_tokens: 150,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('API request failed');
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content || generateGroundedResponse(currentInput);
 
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: response,
+        content: aiResponse,
         timestamp: new Date(),
-        type: responseType
+        type: "info"
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      // Fallback to grounded response
+      const assistantMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: generateGroundedResponse(currentInput),
+        timestamp: new Date(),
+        type: "info"
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -191,6 +264,37 @@ export const ChatPanel = () => {
         </div>
       </div>
 
+      {/* API Key Input */}
+      {showApiKeyInput && (
+        <div className="p-4 border-t border-border bg-secondary/20">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">OpenAI API Key Required</span>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Enter your OpenAI API key..."
+                className="flex-1 text-xs"
+              />
+              <Button 
+                onClick={handleApiKeySubmit}
+                disabled={!apiKey.trim()}
+                size="sm"
+              >
+                Save
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Your API key is stored locally and never sent to our servers.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="p-4 border-t border-border">
         <div className="flex gap-2">
@@ -200,16 +304,22 @@ export const ChatPanel = () => {
             onKeyPress={handleKeyPress}
             placeholder="Ask about solar weather, CMEs, or satellites..."
             className="flex-1"
+            disabled={!apiKey}
           />
           <Button 
             onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isTyping}
+            disabled={!inputValue.trim() || isTyping || !apiKey}
             size="icon"
             className="bg-primary hover:bg-primary/90"
           >
             <Send className="w-4 h-4" />
           </Button>
         </div>
+        {!apiKey && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Enter your OpenAI API key to enable the chatbot
+          </p>
+        )}
       </div>
     </div>
   );

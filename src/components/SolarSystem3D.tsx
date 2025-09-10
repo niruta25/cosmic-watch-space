@@ -123,13 +123,27 @@ const CME = ({ isPlaying }: { isPlaying: boolean }) => {
 };
 
 // Satellite constellation
-const Satellites = ({ isPlaying }: { isPlaying: boolean }) => {
+const Satellites = ({ 
+  isPlaying, 
+  onSatelliteClick,
+  selectedSatelliteId 
+}: { 
+  isPlaying: boolean;
+  onSatelliteClick: (satellite: any) => void;
+  selectedSatelliteId: string | null;
+}) => {
   const satellites = Array.from({ length: 8 }, (_, i) => ({
-    id: i,
+    id: `SAT-${i + 1}`,
     distance: 12 + Math.random() * 6,
     angle: (i / 8) * Math.PI * 2,
     speed: 0.01 + Math.random() * 0.02,
     name: `SAT-${i + 1}`,
+    operator: ["NASA", "ESA", "SpaceX", "CNSA", "ISRO", "JAXA", "Roscosmos", "Commercial"][i],
+    altitude: Math.round(400 + Math.random() * 35000),
+    orbitType: i < 3 ? "LEO" : i < 6 ? "MEO" : "GEO",
+    launchDate: `202${Math.floor(Math.random() * 4)}-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+    status: ["operational", "operational", "operational", "degraded", "operational", "operational", "operational", "inactive"][i] as "operational" | "degraded" | "inactive",
+    velocity: 7.8 + Math.random() * 3.2
   }));
 
   return (
@@ -138,7 +152,9 @@ const Satellites = ({ isPlaying }: { isPlaying: boolean }) => {
         <Satellite 
           key={sat.id} 
           satellite={sat} 
-          isPlaying={isPlaying} 
+          isPlaying={isPlaying}
+          onClick={onSatelliteClick}
+          isSelected={selectedSatelliteId === sat.id}
         />
       ))}
     </>
@@ -147,10 +163,14 @@ const Satellites = ({ isPlaying }: { isPlaying: boolean }) => {
 
 const Satellite = ({ 
   satellite, 
-  isPlaying 
+  isPlaying,
+  onClick,
+  isSelected
 }: { 
   satellite: any; 
-  isPlaying: boolean; 
+  isPlaying: boolean;
+  onClick: (satellite: any) => void;
+  isSelected: boolean;
 }) => {
   const satRef = useRef<THREE.Group>(null);
   const [angle, setAngle] = useState(satellite.angle);
@@ -163,16 +183,39 @@ const Satellite = ({
     }
   });
 
+  const handleClick = () => {
+    const position = {
+      x: Math.cos(angle) * satellite.distance * 1000, // Convert to km
+      y: 0,
+      z: Math.sin(angle) * satellite.distance * 1000
+    };
+    
+    onClick({
+      ...satellite,
+      position
+    });
+  };
+
   return (
-    <group ref={satRef}>
-      <Sphere args={[0.1, 8, 8]}>
-        <meshBasicMaterial color="#C0C0C0" />
+    <group ref={satRef} onClick={handleClick}>
+      <Sphere args={[isSelected ? 0.15 : 0.1, 8, 8]}>
+        <meshBasicMaterial color={isSelected ? "#FFD700" : "#C0C0C0"} />
       </Sphere>
+      
+      {isSelected && (
+        <Sphere args={[0.2, 8, 8]}>
+          <meshBasicMaterial 
+            color="#FFD700" 
+            transparent 
+            opacity={0.3}
+          />
+        </Sphere>
+      )}
       
       <Text
         position={[0, 0.5, 0]}
         fontSize={0.2}
-        color="#C0C0C0"
+        color={isSelected ? "#FFD700" : "#C0C0C0"}
         anchorX="center"
         anchorY="middle"
       >
@@ -185,9 +228,18 @@ const Satellite = ({
 interface SolarSystem3DProps {
   isPlaying: boolean;
   currentTime: Date;
+  onSatelliteClick: (satellite: any) => void;
+  selectedSatelliteId: string | null;
+  onImpactedSatellitesChange: (satellites: any[]) => void;
 }
 
-export const SolarSystem3D = ({ isPlaying, currentTime }: SolarSystem3DProps) => {
+export const SolarSystem3D = ({ 
+  isPlaying, 
+  currentTime, 
+  onSatelliteClick, 
+  selectedSatelliteId,
+  onImpactedSatellitesChange 
+}: SolarSystem3DProps) => {
   return (
     <div className="w-full h-full">
       <Canvas
@@ -210,7 +262,11 @@ export const SolarSystem3D = ({ isPlaying, currentTime }: SolarSystem3DProps) =>
         <Sun isPlaying={isPlaying} />
         <Earth isPlaying={isPlaying} />
         <CME isPlaying={isPlaying} />
-        <Satellites isPlaying={isPlaying} />
+        <Satellites 
+          isPlaying={isPlaying}
+          onSatelliteClick={onSatelliteClick}
+          selectedSatelliteId={selectedSatelliteId}
+        />
         
         {/* Earth orbit ring */}
         <Ring args={[14.8, 15.2, 64]} rotation={[Math.PI / 2, 0, 0]}>

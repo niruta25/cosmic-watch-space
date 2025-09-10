@@ -5,12 +5,40 @@ import { Badge } from "@/components/ui/badge";
 import { SolarSystem3D } from "./SolarSystem3D";
 import { TimelineControls } from "./TimelineControls";
 import { ChatPanel } from "./ChatPanel";
+import { ImpactDetectionTable } from "./ImpactDetectionTable";
+import { SatelliteDetailsPanel } from "./SatelliteDetailsPanel";
 import { Play, Pause, AlertTriangle } from "lucide-react";
 
 export const SpaceWeatherDashboard = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [cmeActive, setCmeActive] = useState(true);
+  const [selectedSatellite, setSelectedSatellite] = useState<any>(null);
+  const [impactedSatellites, setImpactedSatellites] = useState<any[]>([]);
+
+  // Mock impact detection logic
+  useEffect(() => {
+    const mockImpactedSats = [
+      {
+        id: "SAT-3",
+        name: "SAT-3",
+        operator: "SpaceX",
+        altitude: 12500,
+        impactTime: new Date(Date.now() + 2.5 * 60 * 60 * 1000), // 2.5 hours from now
+        severity: "high" as const
+      },
+      {
+        id: "SAT-5",
+        name: "SAT-5",
+        operator: "ISRO",
+        altitude: 35786,
+        impactTime: new Date(Date.now() + 4 * 60 * 60 * 1000), // 4 hours from now
+        severity: "medium" as const
+      }
+    ];
+    
+    setImpactedSatellites(cmeActive ? mockImpactedSats : []);
+  }, [cmeActive]);
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -46,12 +74,26 @@ export const SpaceWeatherDashboard = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex">
+        {/* Left Panel - Impact Detection */}
+        <div className="w-80 border-r border-border bg-card p-4">
+          <ImpactDetectionTable 
+            impactedSatellites={impactedSatellites}
+            currentTime={currentTime}
+          />
+        </div>
+
         {/* 3D Visualization */}
         <div className="flex-1 relative">
-          <SolarSystem3D isPlaying={isPlaying} currentTime={currentTime} />
+          <SolarSystem3D 
+            isPlaying={isPlaying} 
+            currentTime={currentTime}
+            onSatelliteClick={setSelectedSatellite}
+            selectedSatelliteId={selectedSatellite?.id || null}
+            onImpactedSatellitesChange={setImpactedSatellites}
+          />
           
           {/* Timeline Controls Overlay */}
-          <div className="absolute bottom-6 left-6 right-80 z-10">
+          <div className="absolute bottom-6 left-6 right-6 z-10">
             <Card className="p-4 bg-card/80 backdrop-blur-sm border-border/50">
               <TimelineControls 
                 isPlaying={isPlaying}
@@ -65,9 +107,15 @@ export const SpaceWeatherDashboard = () => {
 
         {/* Right Panel - Chat */}
         <div className="w-80 border-l border-border bg-card">
-          <ChatPanel />
+          <ChatPanel impactedSatellites={impactedSatellites} />
         </div>
       </div>
+
+      {/* Satellite Details Panel */}
+      <SatelliteDetailsPanel 
+        satellite={selectedSatellite}
+        onClose={() => setSelectedSatellite(null)}
+      />
     </div>
   );
 };
